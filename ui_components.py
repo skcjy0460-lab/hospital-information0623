@@ -68,6 +68,14 @@ def render_hospital_card(hospital: dict):
             with st.expander("🕒 진료시간 보기"):
                 render_business_hours_table(hours)
 
+        feature_highlights = hospital.get("feature_highlights")
+        if feature_highlights:
+            with st.expander("🏆 병원 특징 및 특화서비스"):
+                for line in feature_highlights.split("\n"):
+                    line = line.strip()
+                    if line:
+                        st.markdown(f"- {line}")
+
 
 def render_business_hours_table(hours: list):
     hours_by_day = {h["day_of_week"]: h for h in hours}

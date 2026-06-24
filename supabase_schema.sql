@@ -18,6 +18,7 @@ create table if not exists hospitals (
     photo_url_2 text,
     main_specialty text,
     special_features text,
+    feature_highlights text,
     hotline_phone text not null,
     hotline_note text,
     is_active boolean not null default true,
