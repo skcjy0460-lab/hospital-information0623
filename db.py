@@ -171,9 +171,51 @@ def _time_to_str(value):
 
 
 def upload_hospital_photo(file_bytes: bytes, content_type: str) -> str:
-    """가공된 이미지 바이트를 Supabase Storage에 업로드하고 공개 URL을 반환합니다."""
+    """가공된 이미지 바이트를 Supabase Storage에 업로드하고 공개 URL을 반환합니다.
+    (병원 사진뿐 아니라 광고 배너 이미지 업로드에도 동일하게 재사용합니다.)
+    """
     client = get_admin_client()
     ext = "jpg" if content_type == "image/jpeg" else "png"
     path = f"{uuid.uuid4()}.{ext}"
     client.storage.from_(BUCKET_NAME).upload(path, file_bytes, {"content-type": content_type})
     return client.storage.from_(BUCKET_NAME).get_public_url(path)
+
+
+# ---------------------------------------------------------------------------
+# 광고 배너 - 환자 화면 상단에 자동 순환 노출
+# ---------------------------------------------------------------------------
+
+def fetch_active_banners():
+    """공개(is_active=true) 배너를 노출 순서대로 조회합니다."""
+    client = get_anon_client()
+    response = (
+        client.table("ad_banners")
+        .select("*")
+        .eq("is_active", True)
+        .order("display_order")
+        .execute()
+    )
+    return response.data or []
+
+
+def fetch_all_banners_admin():
+    """비활성 배너를 포함한 전체 배너 목록을 조회합니다 (관리자 전용)."""
+    client = get_admin_client()
+    response = client.table("ad_banners").select("*").order("display_order").execute()
+    return response.data or []
+
+
+def create_banner(data: dict) -> str:
+    client = get_admin_client()
+    response = client.table("ad_banners").insert(data).execute()
+    return response.data[0]["id"]
+
+
+def update_banner(banner_id: str, data: dict):
+    client = get_admin_client()
+    client.table("ad_banners").update(data).eq("id", banner_id).execute()
+
+
+def delete_banner(banner_id: str):
+    client = get_admin_client()
+    client.table("ad_banners").delete().eq("id", banner_id).execute()

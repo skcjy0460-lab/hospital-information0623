@@ -2,9 +2,13 @@
 환자(공개)용 화면에서 병원 정보를 카드 형태로 보여주는 렌더링 함수 모음.
 """
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 
 DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일", "공휴일"]
+
+# 병원 사진 표시 높이(px) - 가로폭은 컬럼에 맞춰 항상 100%로 줄어들고 늘어남(반응형)
+PHOTO_DISPLAY_HEIGHT = 280
 
 
 def render_hospital_card(hospital: dict):
@@ -15,13 +19,20 @@ def render_hospital_card(hospital: dict):
         if location:
             st.caption(f"📍 {location}" + (f" · {hospital['address']}" if hospital.get("address") else ""))
 
-        # 사진은 세로로 쌓지 않고 나란히(가로) 배치 - 정보가 사진 길이에 가려지지 않도록 함
+        # 사진은 나란히(가로) 배치하며, width:100%(% 단위)로 렌더링해서
+        # 브라우저 창 크기/화면 비율이 바뀌어도 항상 컬럼 폭에 맞춰 함께 줄어들고 늘어납니다.
+        # (st.image의 use_container_width는 렌더링 시점의 픽셀값으로 고정되는 경우가 있어,
+        #  순수 CSS(%) 기반 <img> 태그로 대체했습니다.)
         photos = [p for p in [hospital.get("photo_url_1"), hospital.get("photo_url_2")] if p]
         if photos:
             photo_cols = st.columns(len(photos))
             for col, p in zip(photo_cols, photos):
                 with col:
-                    st.image(p, use_container_width=True)
+                    st.markdown(
+                        f'<img src="{p}" style="width:100%;height:{PHOTO_DISPLAY_HEIGHT}px;'
+                        f'object-fit:cover;border-radius:10px;display:block;" />',
+                        unsafe_allow_html=True,
+                    )
         else:
             st.markdown("📷 *등록된 사진이 없습니다*")
 
@@ -75,6 +86,60 @@ def render_hospital_card(hospital: dict):
                     line = line.strip()
                     if line:
                         st.markdown(f"- {line}")
+
+
+def render_banner_carousel(banners: list, interval_seconds: int = 5, height: int = 160):
+    """
+    여러 개의 광고 배너 이미지를 일정 시간마다 자동으로 전환해서 보여줍니다.
+    배너가 1개면 전환 없이 고정으로 보여줍니다.
+
+    banners: [{"image_url": str, "link_url": str|None}, ...] (display_order 순으로 정렬되어 들어온다고 가정)
+    """
+    if not banners:
+        return
+
+    slides_html = ""
+    for i, b in enumerate(banners):
+        img_tag = (
+            f'<img src="{b["image_url"]}" '
+            f'style="width:100%;height:100%;object-fit:cover;display:block;" />'
+        )
+        if b.get("link_url"):
+            slide_inner = (
+                f'<a href="{b["link_url"]}" target="_blank" rel="noopener noreferrer" '
+                f'style="display:block;width:100%;height:100%;">{img_tag}</a>'
+            )
+        else:
+            slide_inner = img_tag
+
+        opacity = "1" if i == 0 else "0"
+        slides_html += (
+            f'<div class="banner-slide" style="position:absolute;top:0;left:0;width:100%;height:100%;'
+            f'opacity:{opacity};transition:opacity 1s ease-in-out;">{slide_inner}</div>'
+        )
+
+    html = f"""
+    <div style="position:relative;width:100%;height:{height}px;overflow:hidden;
+                border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,0.12);">
+        {slides_html}
+    </div>
+    <script>
+        (function() {{
+            const slides = document.querySelectorAll('.banner-slide');
+            let idx = 0;
+            if (slides.length > 1) {{
+                setInterval(function() {{
+                    slides[idx].style.opacity = '0';
+                    idx = (idx + 1) % slides.length;
+                    slides[idx].style.opacity = '1';
+                }}, {interval_seconds * 1000});
+            }}
+        }})();
+    </script>
+    """
+    # st.markdown은 보안상 <script>를 자동으로 제거하므로, 자동 전환(타이머) 기능을 위해
+    # 실제 JS가 실행되는 components.html을 사용합니다.
+    components.html(html, height=height + 10)
 
 
 def render_business_hours_table(hours: list):
