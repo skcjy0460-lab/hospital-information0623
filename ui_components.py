@@ -9,48 +9,47 @@ DAY_ORDER = ["월", "화", "수", "목", "금", "토", "일", "공휴일"]
 
 def render_hospital_card(hospital: dict):
     with st.container(border=True):
-        col_photo, col_info = st.columns([1, 2])
+        st.subheader(hospital.get("name", "이름 미등록"))
 
-        with col_photo:
-            photos = [p for p in [hospital.get("photo_url_1"), hospital.get("photo_url_2")] if p]
-            if photos:
-                for p in photos:
+        location = " ".join(filter(None, [hospital.get("sido"), hospital.get("sigungu")]))
+        if location:
+            st.caption(f"📍 {location}" + (f" · {hospital['address']}" if hospital.get("address") else ""))
+
+        # 사진은 세로로 쌓지 않고 나란히(가로) 배치 - 정보가 사진 길이에 가려지지 않도록 함
+        photos = [p for p in [hospital.get("photo_url_1"), hospital.get("photo_url_2")] if p]
+        if photos:
+            photo_cols = st.columns(len(photos))
+            for col, p in zip(photo_cols, photos):
+                with col:
                     st.image(p, use_container_width=True)
-            else:
-                st.markdown("📷 *등록된 사진이 없습니다*")
+        else:
+            st.markdown("📷 *등록된 사진이 없습니다*")
 
-        with col_info:
-            st.subheader(hospital.get("name", "이름 미등록"))
+        if hospital.get("main_specialty"):
+            st.markdown(f"🌟 **메인 진료과목:** {hospital['main_specialty']}")
+        if hospital.get("special_features"):
+            st.markdown(f"✨ **특화 진료:** {hospital['special_features']}")
 
-            location = " ".join(filter(None, [hospital.get("sido"), hospital.get("sigungu")]))
-            if location:
-                st.caption(f"📍 {location}" + (f" · {hospital['address']}" if hospital.get("address") else ""))
+        depts = hospital.get("departments", [])
+        if depts:
+            dept_names = sorted({d["department_name"] for d in depts})
+            chips = "&nbsp;".join(
+                f'<span style="background-color:#EEF2FF;color:#3730A3;padding:3px 10px;'
+                f'border-radius:14px;font-size:0.85em;margin-right:4px;">{name}</span>'
+                for name in dept_names
+            )
+            st.markdown(f"**진료과:** {chips}", unsafe_allow_html=True)
 
-            if hospital.get("main_specialty"):
-                st.markdown(f"🌟 **메인 진료과목:** {hospital['main_specialty']}")
-            if hospital.get("special_features"):
-                st.markdown(f"✨ **특화 진료:** {hospital['special_features']}")
-
-            depts = hospital.get("departments", [])
-            if depts:
-                dept_names = sorted({d["department_name"] for d in depts})
-                chips = "&nbsp;".join(
-                    f'<span style="background-color:#EEF2FF;color:#3730A3;padding:3px 10px;'
-                    f'border-radius:14px;font-size:0.85em;margin-right:4px;">{name}</span>'
-                    for name in dept_names
-                )
-                st.markdown(f"**진료과:** {chips}", unsafe_allow_html=True)
-
-            hotline = hospital.get("hotline_phone")
-            if hotline:
-                st.markdown(
-                    f'<a href="tel:{hotline}" style="display:inline-block;margin-top:8px;padding:8px 18px;'
-                    f'background-color:#FF4B4B;color:white;border-radius:8px;text-decoration:none;'
-                    f'font-weight:bold;">📞 핫라인 문의: {hotline}</a>',
-                    unsafe_allow_html=True,
-                )
-                if hospital.get("hotline_note"):
-                    st.caption(hospital["hotline_note"])
+        hotline = hospital.get("hotline_phone")
+        if hotline:
+            st.markdown(
+                f'<a href="tel:{hotline}" style="display:inline-block;margin-top:8px;padding:8px 18px;'
+                f'background-color:#FF4B4B;color:white;border-radius:8px;text-decoration:none;'
+                f'font-weight:bold;">📞 핫라인 문의: {hotline}</a>',
+                unsafe_allow_html=True,
+            )
+            if hospital.get("hotline_note"):
+                st.caption(hospital["hotline_note"])
 
         staff = hospital.get("medical_staff", [])
         if staff:
