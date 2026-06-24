@@ -293,7 +293,9 @@ def render_hours_section(key_prefix: str, initial_hours=None):
 # ---------------------------------------------------------------------------
 # 탭 구성
 # ---------------------------------------------------------------------------
-tab_new, tab_edit, tab_list = st.tabs(["➕ 신규 병원 등록", "✏️ 병원 수정 / 삭제", "📋 전체 등록 현황"])
+tab_new, tab_edit, tab_list, tab_banner = st.tabs(
+    ["➕ 신규 병원 등록", "✏️ 병원 수정 / 삭제", "📋 전체 등록 현황", "📢 광고 배너 관리"]
+)
 
 # --- 신규 등록 -------------------------------------------------------------
 with tab_new:
@@ -465,3 +467,75 @@ with tab_list:
             for h in all_h
         ])
         st.dataframe(df, use_container_width=True, hide_index=True)
+
+# --- 광고 배너 관리 --------------------------------------------------------
+with tab_banner:
+    st.subheader("광고 배너 관리")
+    st.caption(
+        "환자용 화면 상단에 노출되는 배너입니다. 여러 개 등록하면 설정한 시간마다 "
+        "자동으로 다음 배너로 넘어갑니다. 클릭 시 이동할 링크는 선택사항입니다."
+    )
+
+    try:
+        banners = db.fetch_all_banners_admin()
+    except Exception as e:
+        st.error("배너 목록을 불러오는 중 오류가 발생했습니다.")
+        st.exception(e)
+        banners = []
+
+    st.markdown("### ➕ 새 배너 추가")
+    new_banner_file = st.file_uploader(
+        "배너 이미지 업로드 (가로로 넓은 이미지를 권장합니다, 예: 1200x300)",
+        type=["jpg", "jpeg", "png"],
+        key="banner_new_file",
+    )
+    new_banner_link = st.text_input(
+        "클릭 시 이동할 링크 (선택)", placeholder="https://...", key="banner_new_link"
+    )
+    new_banner_order = st.number_input(
+        "노출 순서 (작은 숫자가 먼저 보입니다)",
+        min_value=0, value=len(banners), step=1, key="banner_new_order",
+    )
+
+    if st.button("배너 등록", type="primary", key="banner_new_submit"):
+        if new_banner_file is None:
+            st.error("배너 이미지를 업로드해주세요.")
+        else:
+            try:
+                with st.spinner("등록 중입니다..."):
+                    img_bytes, ctype = process_uploaded_image(new_banner_file)
+                    image_url = db.upload_hospital_photo(img_bytes, ctype)
+                    db.create_banner({
+                        "image_url": image_url,
+                        "link_url": new_banner_link.strip() or None,
+                        "display_order": int(new_banner_order),
+                        "is_active": True,
+                    })
+                st.success("배너가 등록되었습니다.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"등록 중 오류가 발생했습니다: {e}")
+
+    st.divider()
+    st.markdown("### 등록된 배너 목록")
+    if not banners:
+        st.info("등록된 배너가 없습니다.")
+    else:
+        for b in banners:
+            with st.container(border=True):
+                col_img, col_info, col_actions = st.columns([1, 2, 1])
+                with col_img:
+                    st.image(b["image_url"], use_container_width=True)
+                with col_info:
+                    st.caption(f"노출 순서: {b.get('display_order')}")
+                    if b.get("link_url"):
+                        st.caption(f"링크: {b['link_url']}")
+                    st.caption("상태: " + ("✅ 활성" if b.get("is_active") else "🚫 비활성"))
+                with col_actions:
+                    toggle_label = "🚫 비활성화" if b.get("is_active") else "✅ 활성화"
+                    if st.button(toggle_label, key=f"banner_toggle_{b['id']}"):
+                        db.update_banner(b["id"], {"is_active": not b.get("is_active")})
+                        st.rerun()
+                    if st.button("🗑️ 삭제", key=f"banner_delete_{b['id']}"):
+                        db.delete_banner(b["id"])
+                        st.rerun()
